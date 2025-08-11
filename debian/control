@@ -1,16 +1,19 @@
-Source: template
-Section: unknown
+Source: dpkg-archive
+Section: utils
 Priority: optional
-Maintainer: Michael <michaelleeschaecher@gmail.com>
-Build-Depends: debhelper-compat (= 13), autotools-dev
+Maintainer: MLS Tidbits <contact@mlstidbits.com>
+Build-Depends:
+ debhelper-compat (= 13), dh-make, dh-gitchangelog, pandoc, git
 Standards-Version: 4.6.0
-Homepage: <insert the upstream URL, if relevant>
+Homepage: https://github.com/MLSTidbits/dpkg-archive
 #Vcs-Browser: https://salsa.debian.org/debian/template
-#Vcs-Git: https://salsa.debian.org/debian/template.git
+Vcs-Git: https://github.com/MLSTidbits/dpkg-archive.git
 Rules-Requires-Root: no
 
-Package: template
+Package: dpkg-archive
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: <insert up to 60 chars description>
- <insert long description, indented with spaces>
+Depends:
+ ${shlibs:Depends}, ${misc:Depends}, dpkg-dev, jq
+Description: A tool for managing Debian package archives
+ Designed to maintain deb archives, providing a way of keeping
+ packages and Release/InRelease files in sync.
