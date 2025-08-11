@@ -24,21 +24,54 @@ set -ep pipefail
 
 baseDir="$(pwd)"
 
+_editor="${EDITOR:-nano}"
+
+# Check if the config.yaml file exists and create it if it doesn't.
+[ -f "${baseDir}/config.yaml" ] || {
+cp -a /usr/share/dpkg-archive/config.yaml "${baseDir}/config.yaml"
+${_editor} "${baseDir}/config.yaml" ; exit 0 ; }
+
+### Begin GPG signing information ###
+_enable="$(yq '.key.enable' "${baseDir}/config.yaml" || echo "true")"
+_key="$(yq '.key.name' "${baseDir}/config.yaml")"
+
+### Begin Release Information ###
+_origin="$(yq '.release.origin' "${baseDir}/config.yaml")"
+_label="$(yq '.release.label' "${baseDir}/config.yaml" || echo "default")"
+_suite="$(yq '.release.suite' "${baseDir}/config.yaml" || echo "stable")"
+_codename="$(yq '.release.codename' "${baseDir}/config.yaml" || echo "$_suite")"
+
+# Set the architecture from the config file or fallback to dpkg's default
+# architecture if not specified.
+_arch="$(yq '.release.architectures' "${baseDir}/config.yaml" ||
+dpkg --print-architecture)"
+
+_components="$(yq '.release.components' "${baseDir}/config.yaml" || echo "main")"
+_description="$(yq '.release.description' "${baseDir}/config.yaml" ||
+echo "No description provided")"
+
+# Maintainer information
+_maintainerName="$(yq '.maintainer.name' "${baseDir}/config.yaml" || whoami)"
+_maintainerEmail="$(yq '.maintainer.email' "${baseDir}/config.yaml" ||
+echo "<$(whoami)@$(hostname -f)>")"
+
+# All fields for the Release variable should be set now, but check if any are empty
+[ -n "$_origin" ] || { echo "Origin is not set in config.yaml"; exit 1; }
+
 # Release header
 releaseFile="$(cat <<EOF
-Origin:
-Label: default
-Suite: stable
-Codename: stable
+Origin: ${_origin}
+Label: ${_label}
+Suite: ${_suite}
+Codename: ${_codename}
 Version: 1.0
-Architectures: amd64
-Components: main
-Description:
-Maintainer:
+Architectures: ${_arch}
+Components: ${_components}
+Description: ${_description}
+Maintainer: ${_maintainerName} <${_maintainerEmail}>
 date: $(date -Ru)
 EOF
 )"
-
 
 # Rebuild the Packages file
 dpkg-scanpackages --arch amd64 pool/ > dists/stable/main/binary-amd64/Packages || {
@@ -65,12 +98,24 @@ cd "${baseDir}/dists/stable"
     do_hash "MD5Sum" "md5sum"
     do_hash "SHA1" "sha1sum"
     do_hash "SHA256" "sha256sum"
-} >> Release
+} >> InRelease
 
+if [ "$_enable" = "true" ] ; then
 # Remove the old Release.gpg and InRelease files
 rm -vf Release.gpg InRelease
 
-gpg --default-key "" -abs -o Release.gpg Release
-gpg --default-key "" --clearsign -o InRelease Release
+    # Sign the Release file with GPG
+    if [ -z "$_key" ]; then
+        echo "No GPG key specified in config.yaml. Please set 'key.gpg.name' to your GPG key."
+        exit 1
+    fi
+
+    gpg --default-key "$_key" --output Release.gpg --detach-sig Release 2> /dev/null
+    gpg --default-key "$_key" --clearsign -o InRelease Release 2> /dev/null
+
+    echo "Signed Release and InRelease files with GPG key: ${_key}"
+else
+    echo "GPG signing is disabled in config.yaml."
+fi
 
 exit 0
