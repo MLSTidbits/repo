@@ -10,3 +10,9 @@ dist/
 changelog
 version
 md5sums
+
+*.substvars
+debian/files
+debian/.debhelper/
+debian/dpkg-archive/
+man/*.1
