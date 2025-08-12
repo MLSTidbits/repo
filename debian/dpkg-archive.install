@@ -1,2 +1,2 @@
 src/dpkg-archive usr/bin/
-src/configure.yaml usr/share/dpkg-archive/
+src/config.yaml usr/share/dpkg-archive/
