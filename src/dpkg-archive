@@ -32,27 +32,27 @@ cp -a /usr/share/dpkg-archive/config.yaml "${baseDir}/config.yaml"
 ${_editor} "${baseDir}/config.yaml" ; exit 0 ; }
 
 ### Begin GPG signing information ###
-_enable="$(yq '.key.enable' "${baseDir}/config.yaml" || echo "true")"
-_key="$(yq '.key.name' "${baseDir}/config.yaml")"
+_enable="$(yq '.key.enable' "${baseDir}/config.yaml" | tr -d '"' || echo "true")"
+_key="$(yq '.key.name' "${baseDir}/config.yaml" | tr -d '"')"
 
 ### Begin Release Information ###
-_origin="$(yq '.release.origin' "${baseDir}/config.yaml")"
-_label="$(yq '.release.label' "${baseDir}/config.yaml" || echo "default")"
-_suite="$(yq '.release.suite' "${baseDir}/config.yaml" || echo "stable")"
-_codename="$(yq '.release.codename' "${baseDir}/config.yaml" || echo "$_suite")"
+_origin="$(yq '.release.origin' "${baseDir}/config.yaml" | tr -d '"')"
+_label="$(yq '.release.label' "${baseDir}/config.yaml" | tr -d '"' || echo "default")"
+_suite="$(yq '.release.suite' "${baseDir}/config.yaml" | tr -d '"' || echo "stable")"
+_codename="$(yq '.release.codename' "${baseDir}/config.yaml" | tr -d '"' || echo "$_suite")"
 
 # Set the architecture from the config file or fallback to dpkg's default
 # architecture if not specified.
-_arch="$(yq '.release.architectures' "${baseDir}/config.yaml" ||
+_arch="$(yq '.release.architectures' "${baseDir}/config.yaml" | tr -d '"' ||
 dpkg --print-architecture)"
 
-_components="$(yq '.release.components' "${baseDir}/config.yaml" || echo "main")"
-_description="$(yq '.release.description' "${baseDir}/config.yaml" ||
+_components="$(yq '.release.components' "${baseDir}/config.yaml" | tr -d '"' || echo "main")"
+_description="$(yq '.release.description' "${baseDir}/config.yaml" | tr -d '"' ||
 echo "No description provided")"
 
 # Maintainer information
-_maintainerName="$(yq '.maintainer.name' "${baseDir}/config.yaml" || whoami)"
-_maintainerEmail="$(yq '.maintainer.email' "${baseDir}/config.yaml" ||
+_maintainerName="$(yq '.maintainer.name' "${baseDir}/config.yaml" | tr -d '"' || whoami)"
+_maintainerEmail="$(yq '.maintainer.email' "${baseDir}/config.yaml" | tr -d '"' ||
 echo "<$(whoami)@$(hostname -f)>")"
 
 # All fields for the Release variable should be set now, but check if any are empty
@@ -85,24 +85,22 @@ cd "${baseDir}/dists/stable/main/binary-amd64"
 gzip -k -f Packages
 xz -k -f Packages
 
-cd "${baseDir}"
-
-# Create the Release file
-echo "${releaseFile}" > dists/stable/Release
-
 # Create the Release file
 cd "${baseDir}/dists/stable"
+
+if [ "$_enable" = "true" ] ; then
+# Remove the old Release.gpg and InRelease files
+rm -vf Release.gpg InRelease
+
+# Create the Release file
+echo "${releaseFile}" > Release
 
 # Add hashes to the Release file
 {
     do_hash "MD5Sum" "md5sum"
     do_hash "SHA1" "sha1sum"
     do_hash "SHA256" "sha256sum"
-} >> InRelease
-
-if [ "$_enable" = "true" ] ; then
-# Remove the old Release.gpg and InRelease files
-rm -vf Release.gpg InRelease
+} >> Release
 
     # Sign the Release file with GPG
     if [ -z "$_key" ]; then
