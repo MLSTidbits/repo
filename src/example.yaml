@@ -1,7 +1,4 @@
-# This is required for the repo tool to recognize this as a repository
-# used for managing Debian package archives.
 format: yaml
-version: 1
 
 # The origin is most likely your company, organization or project name.
 # It is used by apt to identify the repository.
@@ -14,6 +11,8 @@ label: MyRepo
 suite: stable
 # The codename is an optional is offend the same as the suite.
 codename: stable
+# The version field is used to specify the version of the repository format.
+version: 1
 # The architectures field specifies the supported CPU architectures Common
 # values include "amd64", "i386", "arm64", etc. NOTE: more then one architecture
 # can be specified by separating them with spaces.
@@ -23,11 +22,13 @@ architectures: amd64
 # The components field specifies the sections of the repository, such as "main",
 # "contrib", and "non-free". You can specify multiple components separated by
 # spaces.
-components: main
+components:
 # A brief description of the repository.
-description: My Company Debian Package Archive
+
+description: This is my custom APT repository.
 # The maintainer section provides information about the person or team
 # responsible for maintaining the repository.
+
 maintainer:
   - michael <email@email.com>
   - john <john@email.com>
