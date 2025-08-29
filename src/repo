@@ -19,43 +19,42 @@ function do_hash () {
 }
 
 # Uncomment for debugging
-set -eox pipefail
+# set -eox pipefail
 
-baseDir="$(pwd)"
+_name="repo"
 
-_editor="${EDITOR:-nano}"
+_baseDir="$(pwd)"
+_yaml="$_baseDir/src/example.yaml"
 
-# Check if the config.yaml file exists and create it if it doesn't.
-[ -f "${baseDir}/config.yaml" ] || {
-cp -a /usr/share/dpkg-archive/config.yaml "${baseDir}/config.yaml"
-${_editor} "${baseDir}/config.yaml" ; exit 0 ; }
+# Check if config.yaml exists
+[[ -f "$_yaml" ]] || { echo "[ERROR] config.yaml not found in $_baseDir!" ; exit 1 ; }
 
-### Begin GPG signing information ###
-_enable="$(yq '.key.enable' "${baseDir}/config.yaml" | tr -d '"' || echo "true")"
-_key="$(yq '.key.name' "${baseDir}/config.yaml" | tr -d '"')"
+yq -r '.format' "$_yaml" | grep -q 'yaml' || {
+echo "[ERROR] config.yaml is not a valid YAML file!" ; exit 1 ; }
 
-### Begin Release Information ###
-_origin="$(yq '.release.origin' "${baseDir}/config.yaml" | tr -d '"')"
-_label="$(yq '.release.label' "${baseDir}/config.yaml" | tr -d '"' || echo "default")"
-_suite="$(yq '.release.suite' "${baseDir}/config.yaml" | tr -d '"' || echo "stable")"
-_codename="$(yq '.release.codename' "${baseDir}/config.yaml" | tr -d '"' || echo "$_suite")"
+### Begin Repository Information ###
+_origin="$(yq '.origin' "$_yaml")"
+_label="$(yq '.label' "$_yaml")"
+_suite="$(yq '.suite' "$_yaml")"
+_codename="$(yq '.codename' "$_yaml")"
+_arch="$(yq '.architectures' "$_yaml")"
+_components="$(yq '.components' "$_yaml")"
+_description="$(yq '.description' "$_yaml")"
+_maintainer=""
 
-# Set the architecture from the config file or fallback to dpkg's default
-# architecture if not specified.
-_arch="$(yq '.release.architectures' "${baseDir}/config.yaml" | tr -d '"' ||
-dpkg --print-architecture)"
+mapfile -t _maintainers < <(yq '.maintainer[]' "$_yaml")
 
-_components="$(yq '.release.components' "${baseDir}/config.yaml" | tr -d '"' || echo "main")"
-_description="$(yq '.release.description' "${baseDir}/config.yaml" | tr -d '"' ||
-echo "No description provided")"
+for maintainer in "${_maintainers[@]}" ; do
+    [[ -z "$maintainer" || "$maintainer" = "null" ]] && break
+    _maintainer+="$maintainer, "
+done
 
-# Maintainer information
-_maintainerName="$(yq '.maintainer.name' "${baseDir}/config.yaml" | tr -d '"' || whoami)"
-_maintainerEmail="$(yq '.maintainer.email' "${baseDir}/config.yaml" | tr -d '"' ||
-echo "<$(whoami)@$(hostname -f)>")"
+_maintainer="${_maintainer%, }"
 
-# All fields for the Release variable should be set now, but check if any are empty
-[ -n "$_origin" ] || { echo "Origin is not set in config.yaml"; exit 1; }
+for field in $_origin $_label $_suite $_codename $_arch $_components ; do
+    [[ "${field}" = "null" ]] && {
+    echo "$_name - [ERROR] $field value in $_yaml!" ; exit 1 ; }
+done
 
 # Release header
 releaseFile="$(cat <<EOF
