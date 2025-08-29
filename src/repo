@@ -3,8 +3,6 @@
 # Update the package and Release/InRelease files keeping the repository
 # structure intact.
 
-set -eo pipefail
-
 function do_hash () {
 
     local hashName hashCmd
@@ -20,7 +18,8 @@ function do_hash () {
     done
 }
 
-set -ep pipefail
+# Uncomment for debugging
+set -eox pipefail
 
 baseDir="$(pwd)"
 
