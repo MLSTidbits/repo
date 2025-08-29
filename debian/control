@@ -1,16 +1,16 @@
-Source: dpkg-archive
+Source: repo
 Section: utils
 Priority: optional
 Maintainer: MLS Tidbits <contact@mlstidbits.com>
 Build-Depends:
- debhelper-compat (= 13), dh-make, dh-gitchangelog, pandoc, git
+ debhelper-compat (= 13), dh-make, pandoc, git
 Standards-Version: 4.6.0
-Homepage: https://github.com/MLSTidbits/dpkg-archive
+Homepage: https://github.com/MLSTidbits/repo
 #Vcs-Browser: https://salsa.debian.org/debian/template
-Vcs-Git: https://github.com/MLSTidbits/dpkg-archive.git
+Vcs-Git: https://github.com/MLSTidbits/repo.git
 Rules-Requires-Root: no
 
-Package: dpkg-archive
+Package: repo
 Architecture: any
 Depends:
  dpkg-dev, jq, nano, yq
