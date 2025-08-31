@@ -12,11 +12,8 @@ _baseDir="$(pwd)"
 _yaml="$_baseDir/repo.yaml"
 
 # Check if repo.yaml exists
-[[ -f "$_yaml" ]] || {
-echo "[ERROR] repo.yaml not found in $_baseDir!" ; exit 1 ; }
-
-yq -r '.format' "$_yaml" | grep -q 'repo' || {
-echo "[ERROR] repo.yaml is not a valid YAML file!" ; exit 1 ; }
+[[ -f "$_yaml" ]] || yq -r '.format' "$_yaml" | grep -q 'repo' || {
+echo "[ERROR] repo.yaml not found or invalid format!" ; exit 1 ; }
 
 ### Begin Repository Information ###
 _origin="$(yq -r '.origin' "$_yaml")"
@@ -49,7 +46,7 @@ Description: $_description
 EOF
 )"
 
-_dists="$(yq -r '.dists[]' "$_yaml")"
+# _dists="$(yq -r '.dists[]' "$_yaml")"
 _distsDir="dists/$_suite/$_components"
 
 case "$_arch" in
@@ -69,8 +66,15 @@ echo "Rebuilt the Packages database successfully."
 
 cd "$_distsDir" || exit 1
 
-gzip -f -f -9 Packages 2> /dev/null && xz -k -f Packages 2> /dev/null &&
-echo "Compressed the Packages database successfully."
+rm Packages.gz Packages.xz || true
+
+gzip -k -f -9 Packages 2> /dev/null || {
+echo "[ERROR] Failed to gzip the Packages file!" ; exit 1 ; }
+
+xz -k -f Packages 2> /dev/null || {
+echo "[ERROR] Failed to xz the Packages file!" ; exit 1 ; }
+
+rm Packages || true
 
 cd - > /dev/null || exit 1
 
@@ -98,16 +102,13 @@ for algo in MD5Sum SHA1 SHA256; do
     done >> Release
 done
 
-cd - > /dev/null || exit 1
+pwd && sleep 3
 
-_type=$(yq -r '.sign.type' "$_yaml")
-_key=$(yq -r '.sign.key' "$_yaml")
+_type=$(yq -r '.sign' "$_yaml")
+_key=$(yq -r '.key' "$_yaml")
 
 # Check if signing is enabled in the config file.
-[[ "$(yq -r '.sign.enable' "$_yaml")" == "false" ]] && exit 0
-
-# Sign the Release file with GPG.
-cd "$_baseDir/dists" || exit 1
+[[ "$(yq -r '.sign' "$_yaml")" == "false" ]] && exit 0
 
 rm -f Release.gpg InRelease
 
@@ -119,15 +120,13 @@ fi
 ! gpg --list-secret-keys "$_key" &> /dev/null && {
 echo "[ERROR] GPG key $_key not found in your keyring!" ; exit 1 ; }
 
-case "$_type" in
-    "gpg"           ) echo "Signing with GPG..." ;;
-    *               )
-        echo "[ERROR] Unsupported signing type: $_type" ; exit 1
-    ;;
-esac
+gpg --default-key "$_key" --output Release.gpg --detach-sig Release
+# shellcheck disable=SC2181
+[[ $? -ne 0 ]] && { echo "[ERROR] Failed to sign the Release file!" ; exit 1 ; }
 
-gpg --default-key "$_key" --output Release.gpg --detach-sig Release 2> /dev/null
-gpg --default-key "$_key" --clearsign -o InRelease Release 2> /dev/null
+gpg --default-key "$_key" --clearsign -o InRelease Release
+# shellcheck disable=SC2181
+[[ $? -ne 0 ]] && { echo "[ERROR] Failed to create InRelease file!" ; exit 1 ; }
 
 cd - > /dev/null || exit 1
 
