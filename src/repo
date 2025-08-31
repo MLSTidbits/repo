@@ -3,115 +3,132 @@
 # Update the package and Release/InRelease files keeping the repository
 # structure intact.
 
-function do_hash () {
-
-    local hashName hashCmd
-
-    hashName=$1 ; hashCmd=$2
-
-    echo "${hashName}:"
-
-    find ./main -type f | while read -r f ; do
-        f=$(echo "${f}" | cut -c3-)
-        test "${f}" != "Release" || continue
-        echo " $(${hashCmd} "${f}"  | cut -d" " -f1) $(wc -c "${f}")"
-    done
-}
-
 # Uncomment for debugging
 # set -eox pipefail
 
 _name="repo"
 
 _baseDir="$(pwd)"
-_yaml="$_baseDir/src/example.yaml"
+_yaml="$_baseDir/repo.yaml"
 
-# Check if config.yaml exists
-[[ -f "$_yaml" ]] || { echo "[ERROR] config.yaml not found in $_baseDir!" ; exit 1 ; }
+# Check if repo.yaml exists
+[[ -f "$_yaml" ]] || {
+echo "[ERROR] repo.yaml not found in $_baseDir!" ; exit 1 ; }
 
-yq -r '.format' "$_yaml" | grep -q 'yaml' || {
-echo "[ERROR] config.yaml is not a valid YAML file!" ; exit 1 ; }
+yq -r '.format' "$_yaml" | grep -q 'repo' || {
+echo "[ERROR] repo.yaml is not a valid YAML file!" ; exit 1 ; }
 
 ### Begin Repository Information ###
-_origin="$(yq '.origin' "$_yaml")"
-_label="$(yq '.label' "$_yaml")"
-_suite="$(yq '.suite' "$_yaml")"
-_codename="$(yq '.codename' "$_yaml")"
-_arch="$(yq '.architectures' "$_yaml")"
-_components="$(yq '.components' "$_yaml")"
-_description="$(yq '.description' "$_yaml")"
-_maintainer=""
+_origin="$(yq -r '.origin' "$_yaml")"
+_label="$(yq -r '.label' "$_yaml")"
+_suite="$(yq -r '.suite' "$_yaml")"
+_codename="$(yq -r '.codename' "$_yaml")"
+_version="$(yq -r '.version' "$_yaml")"
+_arch="$(yq -r '.architectures' "$_yaml")"
+_components="$(yq -r '.components' "$_yaml")"
+_maintainer="$(yq -r '.maintainer' "$_yaml")"
+_description="$(yq -r '.description' "$_yaml")"
 
-mapfile -t _maintainers < <(yq '.maintainer[]' "$_yaml")
-
-for maintainer in "${_maintainers[@]}" ; do
-    [[ -z "$maintainer" || "$maintainer" = "null" ]] && break
-    _maintainer+="$maintainer, "
-done
-
-_maintainer="${_maintainer%, }"
-
-for field in $_origin $_label $_suite $_codename $_arch $_components ; do
-    [[ "${field}" = "null" ]] && {
-    echo "$_name - [ERROR] $field value in $_yaml!" ; exit 1 ; }
+for f in $_origin $_label $_suite $_codename $_arch $_components ; do
+    [[ "$f" == "null" ]] && {
+    echo "$_name - [ERROR] $f value in $_yaml!" ; exit 1 ; }
 done
 
 # Release header
-releaseFile="$(cat <<EOF
-Origin: ${_origin}
-Label: ${_label}
-Suite: ${_suite}
-Codename: ${_codename}
-Version: 1.0
-Architectures: ${_arch}
-Components: ${_components}
-Description: ${_description}
-Maintainer: ${_maintainerName} <${_maintainerEmail}>
-date: $(date -Ru)
+_releaseFile="$(cat <<EOF
+Origin: $_origin
+Label: $_label
+Suite: $_suite
+Codename: $_codename
+Version: $_version
+Architectures: $_arch
+Components: $_components
+Maintainer: $_maintainer
+Date: $(date -Ru)
+Description: $_description
 EOF
 )"
 
-# Rebuild the Packages file
-dpkg-scanpackages --arch amd64 pool/ > dists/stable/main/binary-amd64/Packages || {
-    echo "Failed to rebuild the Packages file"
+_dists="$(yq -r '.dists[]' "$_yaml")"
+_distsDir="dists/$_suite/$_components"
+
+case "$_arch" in
+    amd64           ) _distsDir+="/binary-$_arch" ;;
+    i386            ) _distsDir+="/binary-$_arch" ;;
+    arm64           ) _distsDir+="/binary-$_arch" ;;
+    all             ) _distsDir+="/binary-$_arch" ;;
+    *               )
+        echo "[ERROR] Unsupported architecture: $_arch" ; exit 1
+    ;;
+esac
+
+[[ -d "$_distsDir" ]] && echo "[INFO] Compatible dists directory structure"
+
+dpkg-scanpackages --arch "$_arch" pool/ > "$_distsDir/Packages" 2> /dev/null &&
+echo "Rebuilt the Packages database successfully."
+
+cd "$_distsDir" || exit 1
+
+gzip -f -f -9 Packages 2> /dev/null && xz -k -f Packages 2> /dev/null &&
+echo "Compressed the Packages database successfully."
+
+cd - > /dev/null || exit 1
+
+cd "dists/$_suite" || exit 1
+
+# Create the Release file
+echo "${_releaseFile}" > Release
+
+_outputDir="./main"
+
+# Generate checksums for all files
+for algo in MD5Sum SHA1 SHA256; do
+    echo "${algo}:" >> Release
+    case $algo in
+        MD5Sum      ) cmd="md5sum"    ;;
+        SHA1        ) cmd="sha1sum"   ;;
+        SHA256      ) cmd="sha256sum" ;;
+    esac
+
+    find "$_outputDir" -type f ! -name "Release" | sort | while read -r f; do
+        _size=$(stat -c %s "$f")
+        _hash=$($cmd "$f" | cut -d' ' -f1)
+        _relpath="${f#$_outputDir/}"
+        echo " $_hash $_size $_relpath"
+    done >> Release
+done
+
+cd - > /dev/null || exit 1
+
+_type=$(yq -r '.sign.type' "$_yaml")
+_key=$(yq -r '.sign.key' "$_yaml")
+
+# Check if signing is enabled in the config file.
+[[ "$(yq -r '.sign.enable' "$_yaml")" == "false" ]] && exit 0
+
+# Sign the Release file with GPG.
+cd "$_baseDir/dists" || exit 1
+
+rm -f Release.gpg InRelease
+
+if [[ -z "$_key" || "$_key" = "null" ]] ; then
+    echo "[ERROR] No GPG key fingerprint specified in config.yaml!"
     exit 1
-}
-
-# Compress the Packages file into a gz file and xz file
-cd "${baseDir}/dists/stable/main/binary-amd64"
-
-gzip -k -f Packages
-xz -k -f Packages
-
-# Create the Release file
-cd "${baseDir}/dists/stable"
-
-if [ "$_enable" = "true" ] ; then
-# Remove the old Release.gpg and InRelease files
-rm -vf Release.gpg InRelease
-
-# Create the Release file
-echo "${releaseFile}" > Release
-
-# Add hashes to the Release file
-{
-    do_hash "MD5Sum" "md5sum"
-    do_hash "SHA1" "sha1sum"
-    do_hash "SHA256" "sha256sum"
-} >> Release
-
-    # Sign the Release file with GPG
-    if [ -z "$_key" ]; then
-        echo "No GPG key specified in config.yaml. Please set 'key.gpg.name' to your GPG key."
-        exit 1
-    fi
-
-    gpg --default-key "$_key" --output Release.gpg --detach-sig Release 2> /dev/null
-    gpg --default-key "$_key" --clearsign -o InRelease Release 2> /dev/null
-
-    echo "Signed Release and InRelease files with GPG key: ${_key}"
-else
-    echo "GPG signing is disabled in config.yaml."
 fi
+
+! gpg --list-secret-keys "$_key" &> /dev/null && {
+echo "[ERROR] GPG key $_key not found in your keyring!" ; exit 1 ; }
+
+case "$_type" in
+    "gpg"           ) echo "Signing with GPG..." ;;
+    *               )
+        echo "[ERROR] Unsupported signing type: $_type" ; exit 1
+    ;;
+esac
+
+gpg --default-key "$_key" --output Release.gpg --detach-sig Release 2> /dev/null
+gpg --default-key "$_key" --clearsign -o InRelease Release 2> /dev/null
+
+cd - > /dev/null || exit 1
 
 exit 0
