@@ -1,5 +1,5 @@
-format: yaml
-
+# The following flag is required for repo-tools to work correctly.
+format: repo
 # The origin is most likely your company, organization or project name.
 # It is used by apt to identify the repository.
 origin: My Company
@@ -20,23 +20,15 @@ version: 1
 #   architectures: amd64 i386 arm64
 architectures: amd64
 # The components field specifies the sections of the repository, such as "main",
-# "contrib", and "non-free". You can specify multiple components separated by
-# spaces.
-components:
+components: "main"
 # A brief description of the repository.
-
 description: This is my custom APT repository.
 # The maintainer section provides information about the person or team
 # responsible for maintaining the repository.
-
-maintainer:
-  - michael <email@email.com>
-  - john <john@email.com>
-
+maintainer: michael <email@email.com>
+# What from of repository is this for (e.g., binary, source, or both).
+type: binary
 # The key section specifies the GPG key used to sign the repository metadata.
-sign:
-  enable: true
-  # Please note that only gpg is supported at this time.
-  type: gpg
-  # The name or fingerprint of the GPG key used for signing.
-  key: ABCD1234
+sign: true
+# The name or fingerprint of the GPG key used for signing.
+key: ABCD1234
