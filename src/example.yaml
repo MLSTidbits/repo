@@ -32,3 +32,18 @@ type: binary
 sign: true
 # The name or fingerprint of the GPG key used for signing.
 key: ABCD1234
+
+### Repo creation options ###
+
+# The pool directory configuration. Options: alphabetical, library or both.
+pool: alphabetical
+# Generates a gpg key if one does not exist.
+gpg: true
+
+### Website options ###
+
+# Build system to use for the website. Please note that `hugo` requires
+# additional steps for repository to work correctly.
+# Options: hugo, jekyll, html
+# Default: html
+website: html
