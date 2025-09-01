@@ -41,7 +41,6 @@ Version: $_version
 Architectures: $_arch
 Components: $_components
 Maintainer: $_maintainer
-Date: $(date -Ru)
 Description: $_description
 EOF
 )"
@@ -61,48 +60,26 @@ esac
 
 [[ -d "$_distsDir" ]] && echo "[INFO] Compatible dists directory structure"
 
-dpkg-scanpackages --arch "$_arch" pool/ > "$_distsDir/Packages" 2> /dev/null &&
-echo "Rebuilt the Packages database successfully."
+apt-ftparchive packages pool > "$_distsDir/Packages" || {
+echo "[ERROR] Failed to create Packages file!" ; exit 1 ; }
 
 cd "$_distsDir" || exit 1
 
-rm Packages.gz Packages.xz || true
+rm Packages.* || true
 
-gzip -k -f -9 Packages 2> /dev/null || {
-echo "[ERROR] Failed to gzip the Packages file!" ; exit 1 ; }
-
-xz -k -f Packages 2> /dev/null || {
-echo "[ERROR] Failed to xz the Packages file!" ; exit 1 ; }
-
-rm Packages || true
+for _comp in gzip bzip2 xz; do
+    $_comp -k -f Packages
+done
 
 cd - > /dev/null || exit 1
 
-cd "dists/$_suite" || exit 1
-
 # Create the Release file
-echo "${_releaseFile}" > Release
+echo "${_releaseFile}" > "dists/$_suite/Release"
 
-_outputDir="./main"
+apt-ftparchive release dists/stable >> "dists/$_suite/Release" || {
+echo "[ERROR] Failed to create Release file!" ; exit 1 ; }
 
-# Generate checksums for all files
-for algo in MD5Sum SHA1 SHA256; do
-    echo "${algo}:" >> Release
-    case $algo in
-        MD5Sum      ) cmd="md5sum"    ;;
-        SHA1        ) cmd="sha1sum"   ;;
-        SHA256      ) cmd="sha256sum" ;;
-    esac
-
-    find "$_outputDir" -type f ! -name "Release" | sort | while read -r f; do
-        _size=$(stat -c %s "$f")
-        _hash=$($cmd "$f" | cut -d' ' -f1)
-        _relpath="${f#$_outputDir/}"
-        echo " $_hash $_size $_relpath"
-    done >> Release
-done
-
-pwd && sleep 3
+sed -i '/Release/d' "dists/$_suite/Release"
 
 _type=$(yq -r '.sign' "$_yaml")
 _key=$(yq -r '.key' "$_yaml")
@@ -110,7 +87,7 @@ _key=$(yq -r '.key' "$_yaml")
 # Check if signing is enabled in the config file.
 [[ "$(yq -r '.sign' "$_yaml")" == "false" ]] && exit 0
 
-rm -f Release.gpg InRelease
+rm "dists/$_suite/Release.gpg" "dists/$_suite/InRelease" || true
 
 if [[ -z "$_key" || "$_key" = "null" ]] ; then
     echo "[ERROR] No GPG key fingerprint specified in config.yaml!"
@@ -120,14 +97,18 @@ fi
 ! gpg --list-secret-keys "$_key" &> /dev/null && {
 echo "[ERROR] GPG key $_key not found in your keyring!" ; exit 1 ; }
 
-gpg --default-key "$_key" --output Release.gpg --detach-sig Release
+gpg \
+    --default-key "$_key" \
+    --output "dists/$_suite/Release.gpg" \
+    --detach-sig "dists/$_suite/Release" 2> /dev/null
 # shellcheck disable=SC2181
 [[ $? -ne 0 ]] && { echo "[ERROR] Failed to sign the Release file!" ; exit 1 ; }
 
-gpg --default-key "$_key" --clearsign -o InRelease Release
+gpg \
+    --default-key "$_key" \
+    --clearsign \
+    -o "dists/$_suite/InRelease" "dists/$_suite/Release" 2> /dev/null
 # shellcheck disable=SC2181
 [[ $? -ne 0 ]] && { echo "[ERROR] Failed to create InRelease file!" ; exit 1 ; }
-
-cd - > /dev/null || exit 1
 
 exit 0
