@@ -1,4 +1,4 @@
-Source: repo
+Source: repo-tools
 Section: utils
 Priority: optional
 Maintainer: MLS Tidbits <contact@mlstidbits.com>
@@ -10,10 +10,22 @@ Homepage: https://github.com/MLSTidbits/repo
 Vcs-Git: https://github.com/MLSTidbits/repo.git
 Rules-Requires-Root: no
 
+Package: repo-tools
+Architecture: any
+Depends:
+ dpkg-dev, jq, nano, yq, repo, repo-create, apt-ftparchive
+Description: Tools for managing Debian package archives
+ A set of tools to create and manage a Debian package repository,
+ including signing the repository with GPG.
+
 Package: repo
 Architecture: any
 Depends:
- dpkg-dev, jq, nano, yq
-Description: A tool for managing Debian package archives
- Designed to maintain deb archives, providing a way of keeping
- packages and Release/InRelease files in sync.
+ dpkg-dev, jq, nano, yq, apt-ftparchive
+Description: Keep your own Debian/Ubuntu repository up to date
+
+Package: repo-create
+Architecture: any
+Depends:
+ dpkg-dev, jq, nano, yq, git
+Description: Create a new Debian/Ubuntu repository from scratch

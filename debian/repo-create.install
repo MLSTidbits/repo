@@ -1,0 +1,4 @@
+src/repo-create usr/bin/
+src/example.yaml usr/share/repo-create/
+src/_config.yml usr/share/repo-create/
+src/Gemfile usr/share/repo-create/
