@@ -46,4 +46,4 @@ gpg: true
 # additional steps for repository to work correctly.
 # Options: hugo, jekyll, html
 # Default: html
-website: html
+website: jekyll
