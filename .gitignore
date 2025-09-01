@@ -15,4 +15,5 @@ md5sums
 debian/files
 debian/.debhelper/
 debian/repo/
+debian/repo-*/
 man/*.1
