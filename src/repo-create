@@ -1,1 +1,89 @@
 #!/usr/bin/env bash
+
+# Update the package and Release/InRelease files keeping the repository
+# structure intact.
+
+# Uncomment for debugging
+# set -eox pipefail
+
+function info () {
+
+    case "$1" in
+        info            ) echo "${_name}: [INFO] $2"         ;;
+        error           ) echo "${_name}: [ERROR] $2" exit 1 ;;
+        stop            ) echo "${_name}: [STOP] $2"  exit 0 ;;
+        *               ) return 1                           ;;
+    esac
+
+}
+
+function lib () {
+
+    mkdir -p "$_poolDir/lib" || info "error" "Failed to create directory: $_poolDir/lib"
+
+}
+
+function alphabet () {
+
+    for alpha in {a..z} ; do
+        mkdir -p "$_poolDir/$alpha" ||
+        info "error" "Failed to create directory: $_poolDir/$alpha"
+    done
+
+}
+
+_name="repo"
+
+_baseDir="$(pwd)"
+_yaml="$_baseDir/repo.yaml"
+
+# Check if repo.yaml exists
+[[ -f "$_yaml" ]] || yq -r '.format' "$_yaml" | grep -q 'repo' || {
+echo "[ERROR] repo.yaml not found or invalid format!" ; exit 1 ; }
+
+command -v git &> /dev/null || info "error" "git command not found!"
+command -v yq &> /dev/null || info "error" "yq command not found!"
+command -v jq &> /dev/null || info "error" "jq command not found!"
+
+### Begin Repository Information ###
+_origin="$(yq -r '.origin' "$_yaml")"
+_label="$(yq -r '.label' "$_yaml")"
+_suite="$(yq -r '.suite' "$_yaml")"
+_codename="$(yq -r '.codename' "$_yaml")"
+_version="$(yq -r '.version' "$_yaml")"
+_arch="$(yq -r '.architectures' "$_yaml")"
+_components="$(yq -r '.components' "$_yaml")"
+_type="$(yq -r '.type' "$_yaml")"
+_maintainer="$(yq -r '.maintainer' "$_yaml")"
+_description="$(yq -r '.description' "$_yaml")"
+_website="$(yq -r '.website' "$_yaml")"
+
+for f in $_origin $_label $_suite $_codename $_arch $_components ; do
+    [[ "$f" == "null" ]] && {
+    echo "$_name - [ERROR] $f value in $_yaml!" ; exit 1 ; }
+done
+
+# Create the dist directory if it doesn't exist
+_distsDir="dists/$_suite/$_components/$_type-$_arch"
+mkdir -pv "$_distsDir" || {
+echo "[ERROR] Failed to create directory: $_distsDir" ; exit 1 ; }
+
+# Create the pool directory if it doesn't exist
+_pool="$(yq -r '.pool' "$_yaml")"
+_poolDir="pool/$_components"
+
+case "$_pool" in
+    alphabetical|library|both )
+        mkdir -p "$_poolDir" || info "error" "Failed to create directory: $_poolDir"
+        case "$_pool" in
+            alphabetical ) alphabet       ;;
+            library      ) lib            ;;
+            both         ) alphabet ; lib ;;
+        esac
+    ;;
+    null                      )
+        info "error" "Pool value in $_yaml is missing!" ;;
+    *                         )
+        info "error" "Invalid pool value in $_yaml! Use alphabetical, library, or both."
+    ;;
+esac
