@@ -44,6 +44,6 @@ gpg: true
 
 # Build system to use for the website. Please note that `hugo` requires
 # additional steps for repository to work correctly.
-# Options: hugo, jekyll, html
-# Default: html
+# Options: jekyll, html
+# Default: jekyll
 website: jekyll

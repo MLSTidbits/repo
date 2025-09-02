@@ -9,10 +9,10 @@
 function info () {
 
     case "$1" in
-        info            ) echo "${_name}: [INFO] $2"         ;;
-        error           ) echo "${_name}: [ERROR] $2" exit 1 ;;
-        stop            ) echo "${_name}: [STOP] $2"  exit 0 ;;
-        *               ) return 1                           ;;
+        info            ) echo "${_name}: [INFO] $2"           ;;
+        error           ) echo "${_name}: [ERROR] $2" ; exit 1 ;;
+        stop            ) echo "${_name}: [STOP] $2"  ; exit 0 ;;
+        *               ) return 1                             ;;
     esac
 
 }
@@ -32,7 +32,7 @@ function alphabet () {
 
 }
 
-_name="repo"
+_name="repo-create"
 
 _baseDir="$(pwd)"
 _yaml="$_baseDir/repo.yaml"
@@ -87,3 +87,55 @@ case "$_pool" in
         info "error" "Invalid pool value in $_yaml! Use alphabetical, library, or both."
     ;;
 esac
+
+### Begin webpage support ###
+
+_html="$(cat << EOF
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>$_origin</title>
+  </head>
+  <body>
+    <h1>$_label</h1>
+    <p>$_description</p>
+  </body>
+</html>
+EOF
+)"
+
+_jekyll="$(cat << EOF
+---
+layout: default
+title: $_origin
+---
+
+## $_label
+
+$_description
+EOF
+)"
+
+case "$_website" in
+    jekyll                      )
+        echo "$_jekyll" > "$_baseDir/index.md" ||
+        info "error" "Failed to create Jekyll file in $_baseDir"
+
+        cp /usr/share/$_name/{_config.yml,Gemfile} "$_baseDir" ||
+        info "error" "Failed to copy Jekyll config files to $_baseDir"
+    ;;
+    html)
+        echo "$_html" > "$_baseDir/index.html" ||
+        info "error" "Failed to create HTML file in $_baseDir"
+    ;;
+    null                        )
+        info "stop" "Website support not enabled in $_yaml. Exiting."
+    ;;
+    *                           )
+        info "error" "Invalid website value in $_yaml! Use jekyll or html."
+esac
+
+info "info" "Repository structure created successfully."
+info "stop" "Exiting...."
